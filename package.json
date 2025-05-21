@@ -1,0 +1,16 @@
+{
+  "name": "simple-html-proxy",
+  "version": "1.0.0",
+  "description": "Simple proxy to browse sites",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "request": "^2.88.2"
+  },
+  "engines": {
+    "node": ">=14"
+  }
+}
