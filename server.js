@@ -1,7 +1,8 @@
 const express = require('express');
 const request = require('request');
 const app = express();
-const PORT = 3000;
+
+const PORT = process.env.PORT || 3000;
 
 app.use(express.static('public'));
 
@@ -12,6 +13,7 @@ app.get('/proxy', (req, res) => {
     return res.status(400).send('Invalid URL. Must start with http or https.');
   }
 
+  // Proxy the request
   request({ url: targetUrl, followRedirect: true }, (error, response, body) => {
     if (error) {
       return res.status(500).send('Error fetching the URL.');
@@ -21,5 +23,5 @@ app.get('/proxy', (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`Proxy server running at http://localhost:${PORT}`);
+  console.log(`Proxy server running on port ${PORT}`);
 });
