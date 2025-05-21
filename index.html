@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Simple Animation Drawing App</title>
+<style>
+  body { font-family: Arial, sans-serif; margin: 20px; background: #222; color: #eee; }
+  #app { display: flex; gap: 20px; }
+  #canvasContainer { border: 2px solid #555; background: white; }
+  canvas { background: white; display: block; cursor: crosshair; }
+  #tools { max-width: 250px; }
+  label { display: block; margin-top: 10px; }
+  button { margin-top: 10px; width: 100%; padding: 10px; font-weight: bold; cursor: pointer; }
+  input[type=range] { width: 100%; }
+  select, input[type=color] { width: 100%; padding: 5px; }
+  #frames { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 5px; }
+  .frame-btn { background: #444; border: none; padding: 5px 10px; color: white; cursor: pointer; }
+  .frame-btn.active { background: #1e90ff; }
+  #playBtn { background: #1e90ff; }
+</style>
+</head>
+<body>
+
+<h1>Simple Animation Drawing App</h1>
+<div id="app">
+  <div id="canvasContainer">
+    <canvas id="drawCanvas" width="500" height="400"></canvas>
+  </div>
+  <div id="tools">
+    <label>Tool:
+      <select id="toolSelect">
+        <option value="pen">Pen</option>
+        <option value="eraser">Eraser</option>
+      </select>
+    </label>
+    
+    <label>Color:
+      <input type="color" id="colorPicker" value="#000000" />
+    </label>
+    
+    <label>Brush Size:
+      <input type="range" id="brushSize" min="1" max="30" value="5" />
+    </label>
+    
+    <label>FPS:
+      <input type="number" id="fpsInput" min="1" max="30" value="5" />
+    </label>
+    
+    <button id="addFrameBtn">Add Frame</button>
+    <button id="clearFrameBtn">Clear Frame</button>
+    
+    <div id="frames"></div>
+    
+    <button id="playBtn">Play Animation</button>
+  </div>
+</div>
+
+<script>
+  const canvas = document.getElementById('drawCanvas');
+  const ctx = canvas.getContext('2d');
+  const toolSelect = document.getElementById('toolSelect');
+  const colorPicker = document.getElementById('colorPicker');
+  const brushSize = document.getElementById('brushSize');
+  const fpsInput = document.getElementById('fpsInput');
+  const addFrameBtn = document.getElementById('addFrameBtn');
+  const clearFrameBtn = document.getElementById('clearFrameBtn');
+  const framesDiv = document.getElementById('frames');
+  const playBtn = document.getElementById('playBtn');
+
+  let drawing = false;
+  let currentTool = 'pen';
+  let currentColor = '#000000';
+  let currentBrushSize = 5;
+
+  // Each frame is an ImageData object
+  let frames = [];
+  let currentFrameIndex = 0;
+  let animationInterval = null;
+
+  // Init first frame
+  addFrame();
+
+  // Draw function
+  function drawLine(x0, y0, x1, y1) {
+    ctx.strokeStyle = currentTool === 'pen' ? currentColor : '#fff';
+    ctx.lineWidth = currentBrushSize;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(x0, y0);
+    ctx.lineTo(x1, y1);
+    ctx.stroke();
+  }
+
+  let lastX, lastY;
+
+  canvas.addEventListener('mousedown', e => {
+    drawing = true;
+    const rect = canvas.getBoundingClientRect();
+    lastX = e.clientX - rect.left;
+    lastY = e.clientY - rect.top;
+  });
+
+  canvas.addEventListener('mousemove', e => {
+    if (!drawing) return;
+    const rect = canvas.getBoundingClientRect();
+    let x = e.clientX - rect.left;
+    let y = e.clientY - rect.top;
+    drawLine(lastX, lastY, x, y);
+    lastX = x;
+    lastY = y;
+  });
+
+  canvas.addEventListener('mouseup', e => {
+    drawing = false;
+    saveCurrentFrame();
+  });
+
+  canvas.addEventListener('mouseleave', e => {
+    if (drawing) {
+      drawing = false;
+      saveCurrentFrame();
+    }
+  });
+
+  toolSelect.addEventListener('change', () => {
+    currentTool = toolSelect.value;
+  });
+
+  colorPicker.addEventListener('change', () => {
+    currentColor = colorPicker.value;
+  });
+
+  brushSize.addEventListener('input', () => {
+    currentBrushSize = brushSize.value;
+  });
+
+  // Save current canvas to frames array
+  function saveCurrentFrame() {
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    frames[currentFrameIndex] = imageData;
+  }
+
+  // Load frame on canvas
+  function loadFrame(index) {
+    if (frames[index]) {
+      ctx.putImageData(frames[index], 0, 0);
+    } else {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+    currentFrameIndex = index;
+    updateFrameButtons();
+  }
+
+  // Add frame button
+  addFrameBtn.addEventListener('click', () => {
+    addFrame();
+  });
+
+  function addFrame() {
+    frames.push(ctx.createImageData(canvas.width, canvas.height));
+    currentFrameIndex = frames.length - 1;
+    loadFrame(currentFrameIndex);
+    renderFrameButtons();
+  }
+
+  // Clear current frame
+  clearFrameBtn.addEventListener('click', () => {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    saveCurrentFrame();
+  });
+
+  // Frames UI
+  function renderFrameButtons() {
+    framesDiv.innerHTML = '';
+    frames.forEach((frame, i) => {
+      const btn = document.createElement('button');
+      btn.textContent = i + 1;
+      btn.className = 'frame-btn';
+      if (i === currentFrameIndex) btn.classList.add('active');
+      btn.onclick = () => {
+        saveCurrentFrame();
+        loadFrame(i);
+      };
+      framesDiv.appendChild(btn);
+    });
+  }
+
+  function updateFrameButtons() {
+    const buttons = framesDiv.querySelectorAll('button');
+    buttons.forEach((btn, i) => {
+      btn.classList.toggle('active', i === currentFrameIndex);
+    });
+  }
+
+  // Play animation
+  playBtn.addEventListener('click', () => {
+    if (animationInterval) {
+      clearInterval(animationInterval);
+      animationInterval = null;
+      playBtn.textContent = 'Play Animation';
+      loadFrame(currentFrameIndex);
+      return;
+    }
+    let frameIdx = 0;
+    const fps = Math.min(Math.max(fpsInput.value, 1), 30);
+    playBtn.textContent = 'Stop Animation';
+    animationInterval = setInterval(() => {
+      ctx.putImageData(frames[frameIdx], 0, 0);
+      frameIdx = (frameIdx + 1) % frames.length;
+    }, 1000 / fps);
+  });
+
+  // Init UI
+  renderFrameButtons();
+  loadFrame(0);
+</script>
+
+</body>
+</html>
