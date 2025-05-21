@@ -3,62 +3,156 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Simple Animation Drawing App</title>
+<title>Animation Drawing App with Layers, Onion Skin & Shapes</title>
 <style>
-  body { font-family: Arial, sans-serif; margin: 20px; background: #222; color: #eee; }
-  #app { display: flex; gap: 20px; }
-  #canvasContainer { border: 2px solid #555; background: white; }
-  canvas { background: white; display: block; cursor: crosshair; }
-  #tools { max-width: 250px; }
-  label { display: block; margin-top: 10px; }
-  button { margin-top: 10px; width: 100%; padding: 10px; font-weight: bold; cursor: pointer; }
-  input[type=range] { width: 100%; }
-  select, input[type=color] { width: 100%; padding: 5px; }
-  #frames { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 5px; }
-  .frame-btn { background: #444; border: none; padding: 5px 10px; color: white; cursor: pointer; }
-  .frame-btn.active { background: #1e90ff; }
-  #playBtn { background: #1e90ff; }
+  body {
+    font-family: Arial, sans-serif;
+    margin: 10px;
+    background: #222;
+    color: #eee;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  #app {
+    display: flex;
+    gap: 20px;
+  }
+  #canvasContainer {
+    position: relative;
+    border: 2px solid #555;
+    background: white;
+    width: 500px;
+    height: 400px;
+  }
+  canvas {
+    position: absolute;
+    left: 0; top: 0;
+    user-select: none;
+  }
+  #controls {
+    max-width: 320px;
+  }
+  label {
+    display: block;
+    margin-top: 10px;
+  }
+  input[type=color], select, input[type=range], input[type=number] {
+    width: 100%;
+    padding: 5px;
+    background: #333;
+    border: 1px solid #555;
+    color: white;
+  }
+  button {
+    margin-top: 10px;
+    width: 100%;
+    padding: 10px;
+    font-weight: bold;
+    cursor: pointer;
+    background: #1e90ff;
+    border: none;
+    color: white;
+    border-radius: 4px;
+  }
+  #frames {
+    margin-top: 10px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+  }
+  .frame-btn {
+    background: #444;
+    border: none;
+    padding: 5px 10px;
+    color: white;
+    cursor: pointer;
+    border-radius: 4px;
+  }
+  .frame-btn.active {
+    background: #1e90ff;
+  }
+  #layers {
+    margin-top: 15px;
+  }
+  .layer-item {
+    background: #333;
+    margin-top: 5px;
+    padding: 5px;
+    border-radius: 4px;
+  }
+  .layer-item.active {
+    background: #0078d4;
+  }
+  .layer-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .opacity-slider {
+    width: 100%;
+  }
 </style>
 </head>
 <body>
 
-<h1>Simple Animation Drawing App</h1>
+<h1>Animation Drawing App with Layers, Onion Skin & Shapes</h1>
 <div id="app">
-  <div id="canvasContainer">
-    <canvas id="drawCanvas" width="500" height="400"></canvas>
+  <div id="canvasContainer" style="width: 500px; height: 400px;">
+    <!-- Onion skin canvases for prev and next frames -->
+    <canvas id="onionPrev" width="500" height="400" style="z-index: 0; opacity: 0.2;"></canvas>
+    <canvas id="onionNext" width="500" height="400" style="z-index: 0; opacity: 0.2;"></canvas>
+    <!-- Drawing layer canvases -->
+    <!-- These will be dynamically created by JS -->
   </div>
-  <div id="tools">
-    <label>Tool:
+  
+  <div id="controls">
+    <label>
+      Tool:
       <select id="toolSelect">
         <option value="pen">Pen</option>
         <option value="eraser">Eraser</option>
+        <option value="shape">Shape</option> <!-- NEW TOOL OPTION -->
       </select>
     </label>
-    
-    <label>Color:
+
+    <label>
+      Color:
       <input type="color" id="colorPicker" value="#000000" />
     </label>
-    
-    <label>Brush Size:
+
+    <label>
+      Brush Size:
       <input type="range" id="brushSize" min="1" max="30" value="5" />
     </label>
-    
-    <label>FPS:
+
+    <label>
+      FPS:
       <input type="number" id="fpsInput" min="1" max="30" value="5" />
     </label>
-    
+
     <button id="addFrameBtn">Add Frame</button>
-    <button id="clearFrameBtn">Clear Frame</button>
-    
+    <button id="clearFrameBtn">Clear Current Layer</button>
+
     <div id="frames"></div>
-    
+
+    <h3>Layers</h3>
+    <button id="addLayerBtn">Add Layer</button>
+    <div id="layers"></div>
+
     <button id="playBtn">Play Animation</button>
+
+    <button id="saveBtn">Save Animation (JSON)</button>
+    <input type="file" id="loadInput" style="display:none" />
+    <button id="loadBtn">Load Animation (JSON)</button>
   </div>
 </div>
 
 <script>
-  const canvas = document.getElementById('drawCanvas');
-  const ctx = canvas.getContext('2d');
+  const canvasContainer = document.getElementById('canvasContainer');
+  const onionPrev = document.getElementById('onionPrev');
+  const onionNext = document.getElementById('onionNext');
+
   const toolSelect = document.getElementById('toolSelect');
   const colorPicker = document.getElementById('colorPicker');
   const brushSize = document.getElementById('brushSize');
@@ -66,155 +160,614 @@
   const addFrameBtn = document.getElementById('addFrameBtn');
   const clearFrameBtn = document.getElementById('clearFrameBtn');
   const framesDiv = document.getElementById('frames');
+  const layersDiv = document.getElementById('layers');
+  const addLayerBtn = document.getElementById('addLayerBtn');
   const playBtn = document.getElementById('playBtn');
+  const saveBtn = document.getElementById('saveBtn');
+  const loadBtn = document.getElementById('loadBtn');
+  const loadInput = document.getElementById('loadInput');
 
+  const CANVAS_WIDTH = 500;
+  const CANVAS_HEIGHT = 400;
+
+  // Frames = array of frames, each frame = array of layers' ImageData
+  let frames = [];
+  let currentFrameIndex = 0;
+
+  // Layers (name + opacity)
+  let layers = [{name: "Layer 1", opacity: 1}];
+  let currentLayerIndex = 0;
+
+  // Drawing state
   let drawing = false;
   let currentTool = 'pen';
   let currentColor = '#000000';
   let currentBrushSize = 5;
 
-  // Each frame is an ImageData object
-  let frames = [];
-  let currentFrameIndex = 0;
+  // Shape tool state
+  let shapeStart = null; // {x, y} when starting shape drag
+  let shapePreviewCanvas = null;
+  let shapePreviewCtx = null;
+  let shapeType = 'rectangle'; // For now only rectangle; can extend later to ellipse, line
+
+  // Animation play interval
   let animationInterval = null;
 
-  // Init first frame
-  addFrame();
+  // Canvas layers for drawing
+  let layerCanvases = [];
+  let layerContexts = [];
 
-  // Draw function
-  function drawLine(x0, y0, x1, y1) {
-    ctx.strokeStyle = currentTool === 'pen' ? currentColor : '#fff';
-    ctx.lineWidth = currentBrushSize;
-    ctx.lineCap = 'round';
-    ctx.beginPath();
-    ctx.moveTo(x0, y0);
-    ctx.lineTo(x1, y1);
-    ctx.stroke();
+  // Onion skin contexts
+  const ctxOnionPrev = onionPrev.getContext('2d');
+  const ctxOnionNext = onionNext.getContext('2d');
+
+  function init() {
+    createLayerCanvases();
+    addFrame();
+    loadFrame(0);
+    renderFramesUI();
+    renderLayersUI();
+    updateOnionSkin();
+    setupShapePreviewCanvas();
   }
 
-  let lastX, lastY;
+  function createLayerCanvases() {
+    layerCanvases.forEach(c => canvasContainer.removeChild(c));
+    layerCanvases = [];
+    layerContexts = [];
 
-  canvas.addEventListener('mousedown', e => {
+    layers.forEach((layer, idx) => {
+      const c = document.createElement('canvas');
+      c.width = CANVAS_WIDTH;
+      c.height = CANVAS_HEIGHT;
+      c.style.zIndex = 10 + idx;
+      c.style.position = 'absolute';
+      c.style.left = '0';
+      c.style.top = '0';
+      c.style.pointerEvents = 'auto';
+      canvasContainer.appendChild(c);
+      layerCanvases.push(c);
+      layerContexts.push(c.getContext('2d'));
+    });
+
+    addCanvasEventListeners();
+  }
+
+  function addCanvasEventListeners() {
+    layerCanvases.forEach((canvas, idx) => {
+      canvas.onmousedown = (e) => {
+        if (idx !== currentLayerIndex) return;
+        if(currentTool === 'shape') {
+          startShape(e);
+        } else {
+          startDrawing(e);
+        }
+      };
+      canvas.onmousemove = (e) => {
+        if (idx !== currentLayerIndex) return;
+        if(currentTool === 'shape') {
+          drawShapePreview(e);
+        } else {
+          drawMove(e);
+        }
+      };
+      canvas.onmouseup = (e) => {
+        if (idx !== currentLayerIndex) return;
+        if(currentTool === 'shape') {
+          endShape(e);
+        } else {
+          stopDrawing();
+        }
+      };
+      canvas.onmouseleave = (e) => {
+        if (idx !== currentLayerIndex) return;
+        if(currentTool === 'shape') {
+          cancelShape();
+        } else {
+          stopDrawing();
+        }
+      };
+    });
+  }
+
+  // Shape preview canvas overlays above layers for showing the shape being drawn
+  function setupShapePreviewCanvas() {
+    shapePreviewCanvas = document.createElement('canvas');
+    shapePreviewCanvas.width = CANVAS_WIDTH;
+    shapePreviewCanvas.height = CANVAS_HEIGHT;
+    shapePreviewCanvas.style.position = 'absolute';
+    shapePreviewCanvas.style.left = '0';
+    shapePreviewCanvas.style.top = '0';
+    shapePreviewCanvas.style.zIndex = 1000;
+    shapePreviewCanvas.style.pointerEvents = 'none'; // let mouse go through
+    canvasContainer.appendChild(shapePreviewCanvas);
+    shapePreviewCtx = shapePreviewCanvas.getContext('2d');
+  }
+
+  // Drawing pen tool functions
+  let lastX, lastY;
+  function startDrawing(e) {
     drawing = true;
-    const rect = canvas.getBoundingClientRect();
+    const rect = layerCanvases[currentLayerIndex].getBoundingClientRect();
     lastX = e.clientX - rect.left;
     lastY = e.clientY - rect.top;
-  });
+  }
 
-  canvas.addEventListener('mousemove', e => {
+  function drawMove(e) {
     if (!drawing) return;
-    const rect = canvas.getBoundingClientRect();
+    const rect = layerCanvases[currentLayerIndex].getBoundingClientRect();
+    const ctx = layerContexts[currentLayerIndex];
     let x = e.clientX - rect.left;
     let y = e.clientY - rect.top;
-    drawLine(lastX, lastY, x, y);
+
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    if(currentTool === 'pen') {
+      ctx.strokeStyle = currentColor;
+      ctx.lineWidth = currentBrushSize;
+      ctx.globalCompositeOperation = 'source-over';
+    } else if(currentTool === 'eraser') {
+      ctx.strokeStyle = 'rgba(0,0,0,1)';
+      ctx.lineWidth = currentBrushSize;
+      ctx.globalCompositeOperation = 'destination-out';
+    }
+
+    ctx.beginPath();
+    ctx.moveTo(lastX, lastY);
+    ctx.lineTo(x, y);
+    ctx.stroke();
+
     lastX = x;
     lastY = y;
-  });
+  }
 
-  canvas.addEventListener('mouseup', e => {
+  function stopDrawing() {
+    if (!drawing) return;
     drawing = false;
-    saveCurrentFrame();
-  });
-
-  canvas.addEventListener('mouseleave', e => {
-    if (drawing) {
-      drawing = false;
-      saveCurrentFrame();
-    }
-  });
-
-  toolSelect.addEventListener('change', () => {
-    currentTool = toolSelect.value;
-  });
-
-  colorPicker.addEventListener('change', () => {
-    currentColor = colorPicker.value;
-  });
-
-  brushSize.addEventListener('input', () => {
-    currentBrushSize = brushSize.value;
-  });
-
-  // Save current canvas to frames array
-  function saveCurrentFrame() {
-    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    frames[currentFrameIndex] = imageData;
+    saveCurrentLayerToFrame();
   }
 
-  // Load frame on canvas
-  function loadFrame(index) {
-    if (frames[index]) {
-      ctx.putImageData(frames[index], 0, 0);
-    } else {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-    }
-    currentFrameIndex = index;
-    updateFrameButtons();
+  // Shape tool functions
+  function startShape(e) {
+    drawing = true;
+    const rect = layerCanvases[currentLayerIndex].getBoundingClientRect();
+    shapeStart = {
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top
+    };
   }
 
-  // Add frame button
-  addFrameBtn.addEventListener('click', () => {
-    addFrame();
-  });
+  function drawShapePreview(e) {
+    if (!drawing || !shapeStart) return;
+    const rect = layerCanvases[currentLayerIndex].getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
 
+    shapePreviewCtx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+    shapePreviewCtx.strokeStyle = currentColor;
+    shapePreviewCtx.lineWidth = currentBrushSize;
+    shapePreviewCtx.fillStyle = 'transparent';
+
+    const startX = shapeStart.x;
+    const startY = shapeStart.y;
+    const width = x - startX;
+    const height = y - startY;
+
+    if(shapeType === 'rectangle') {
+      shapePreviewCtx.strokeRect(startX, startY, width, height);
+    } else if(shapeType === 'ellipse') {
+      shapePreviewCtx.beginPath();
+      shapePreviewCtx.ellipse(
+        startX + width/2,
+        startY + height/2,
+        Math.abs(width/2),
+        Math.abs(height/2),
+        0,
+        0,
+        2 * Math.PI
+      );
+      shapePreviewCtx.stroke();
+    } else if(shapeType === 'line') {
+      shapePreviewCtx.beginPath();
+      shapePreviewCtx.moveTo(startX, startY);
+      shapePreviewCtx.lineTo(x, y);
+      shapePreviewCtx.stroke();
+    }
+  }
+
+  function endShape(e) {
+    if (!drawing || !shapeStart) return;
+    const rect = layerCanvases[currentLayerIndex].getBoundingClientRect();
+    const endX = e.clientX - rect.left;
+    const endY = e.clientY - rect.top;
+
+    // Clear preview
+    shapePreviewCtx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+    // Draw shape to current layer canvas
+    const ctx = layerContexts[currentLayerIndex];
+    ctx.strokeStyle = currentColor;
+    ctx.lineWidth = currentBrushSize;
+    ctx.fillStyle = 'transparent';
+
+    const startX = shapeStart.x;
+    const startY = shapeStart.y;
+    const width = endX - startX;
+    const height = endY - startY;
+
+    if(shapeType === 'rectangle') {
+      ctx.strokeRect(startX, startY, width, height);
+    } else if(shapeType === 'ellipse') {
+      ctx.beginPath();
+      ctx.ellipse(
+        startX + width/2,
+        startY + height/2,
+        Math.abs(width/2),
+        Math.abs(height/2),
+        0,
+        0,
+        2 * Math.PI
+      );
+      ctx.stroke();
+    } else if(shapeType === 'line') {
+      ctx.beginPath();
+      ctx.moveTo(startX, startY);
+      ctx.lineTo(endX, endY);
+      ctx.stroke();
+    }
+
+    shapeStart = null;
+    drawing = false;
+    saveCurrentLayerToFrame();
+  }
+
+  function cancelShape() {
+    drawing = false;
+    shapeStart = null;
+    shapePreviewCtx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+  }
+
+  // Save current layer canvas to frame data
+  function saveCurrentLayerToFrame() {
+    if (!frames[currentFrameIndex]) return;
+    const imageData = layerContexts[currentLayerIndex].getImageData(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+    frames[currentFrameIndex][currentLayerIndex] = imageData;
+    updateOnionSkin();
+  }
+
+  // Add new frame (with empty layers)
   function addFrame() {
-    frames.push(ctx.createImageData(canvas.width, canvas.height));
-    currentFrameIndex = frames.length - 1;
+    let newFrame = [];
+    layers.forEach(() => {
+      // blank white layer by default
+      const blankCanvas = document.createElement('canvas');
+      blankCanvas.width = CANVAS_WIDTH;
+      blankCanvas.height = CANVAS_HEIGHT;
+      const blankCtx = blankCanvas.getContext('2d');
+      blankCtx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+      newFrame.push(blankCtx.getImageData(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT));
+    });
+    frames.push(newFrame);
+    currentFrameIndex = frames.length -1;
     loadFrame(currentFrameIndex);
-    renderFrameButtons();
+    renderFramesUI();
   }
 
-  // Clear current frame
-  clearFrameBtn.addEventListener('click', () => {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    saveCurrentFrame();
-  });
+  // Load a frame onto canvases
+  function loadFrame(index) {
+    if (!frames[index]) return;
+    currentFrameIndex = index;
+    frames[index].forEach((imgData, idx) => {
+      layerContexts[idx].putImageData(imgData, 0, 0);
+    });
+    renderFramesUI();
+    renderLayersUI();
+    updateOnionSkin();
+  }
 
-  // Frames UI
-  function renderFrameButtons() {
+  // Render frames buttons
+  function renderFramesUI() {
     framesDiv.innerHTML = '';
-    frames.forEach((frame, i) => {
+    frames.forEach((_, idx) => {
       const btn = document.createElement('button');
-      btn.textContent = i + 1;
-      btn.className = 'frame-btn';
-      if (i === currentFrameIndex) btn.classList.add('active');
+      btn.textContent = `Frame ${idx+1}`;
+      btn.className = 'frame-btn' + (idx === currentFrameIndex ? ' active' : '');
       btn.onclick = () => {
-        saveCurrentFrame();
-        loadFrame(i);
+        saveAllLayersToFrame();
+        loadFrame(idx);
       };
       framesDiv.appendChild(btn);
     });
   }
 
-  function updateFrameButtons() {
-    const buttons = framesDiv.querySelectorAll('button');
-    buttons.forEach((btn, i) => {
-      btn.classList.toggle('active', i === currentFrameIndex);
+  // Save all layer canvases to frame data
+  function saveAllLayersToFrame() {
+    layers.forEach((_, idx) => {
+      const imgData = layerContexts[idx].getImageData(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+      frames[currentFrameIndex][idx] = imgData;
     });
   }
 
+  // Render layers UI
+  function renderLayersUI() {
+    layersDiv.innerHTML = '';
+    layers.forEach((layer, idx) => {
+      const div = document.createElement('div');
+      div.className = 'layer-item' + (idx === currentLayerIndex ? ' active' : '');
+      div.innerHTML = `
+        <div class="layer-header">
+          <span>${layer.name}</span>
+          <button data-idx="${idx}" class="selectLayerBtn">Select</button>
+        </div>
+        <input type="range" min="0" max="1" step="0.01" value="${layer.opacity}" class="opacity-slider" data-idx="${idx}" />
+      `;
+      layersDiv.appendChild(div);
+    });
+
+    // Attach events
+    document.querySelectorAll('.selectLayerBtn').forEach(btn => {
+      btn.onclick = () => {
+        saveAllLayersToFrame();
+        currentLayerIndex = parseInt(btn.getAttribute('data-idx'));
+        loadFrame(currentFrameIndex);
+        renderLayersUI();
+      };
+    });
+
+    document.querySelectorAll('.opacity-slider').forEach(slider => {
+      slider.oninput = () => {
+        const idx = parseInt(slider.getAttribute('data-idx'));
+        layers[idx].opacity = parseFloat(slider.value);
+        updateLayerOpacity();
+      };
+    });
+
+    updateLayerOpacity();
+  }
+
+  function updateLayerOpacity() {
+    layers.forEach((layer, idx) => {
+      layerCanvases[idx].style.opacity = layer.opacity;
+    });
+  }
+
+  // Add new layer
+  addLayerBtn.onclick = () => {
+    layers.push({name: `Layer ${layers.length+1}`, opacity: 1});
+    frames.forEach(frame => {
+      // add blank ImageData for new layer
+      const blankCanvas = document.createElement('canvas');
+      blankCanvas.width = CANVAS_WIDTH;
+      blankCanvas.height = CANVAS_HEIGHT;
+      const blankCtx = blankCanvas.getContext('2d');
+      blankCtx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+      frame.push(blankCtx.getImageData(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT));
+    });
+    createLayerCanvases();
+    loadFrame(currentFrameIndex);
+    renderLayersUI();
+  };
+
+  // Clear current layer canvas
+  clearFrameBtn.onclick = () => {
+    const ctx = layerContexts[currentLayerIndex];
+    ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+    saveCurrentLayerToFrame();
+  };
+
+  addFrameBtn.onclick = () => {
+    saveAllLayersToFrame();
+    addFrame();
+  };
+
+  // Onion skin update
+  function updateOnionSkin() {
+    ctxOnionPrev.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+    ctxOnionNext.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+    if(currentFrameIndex > 0) {
+      // Show previous frame onion skin
+      const prevFrame = frames[currentFrameIndex - 1];
+      prevFrame.forEach((imgData, idx) => {
+        ctxOnionPrev.globalAlpha = 0.2 * layers[idx].opacity;
+        ctxOnionPrev.putImageData(imgData, 0, 0);
+      });
+    }
+    if(currentFrameIndex < frames.length - 1) {
+      // Show next frame onion skin
+      const nextFrame = frames[currentFrameIndex + 1];
+      nextFrame.forEach((imgData, idx) => {
+        ctxOnionNext.globalAlpha = 0.2 * layers[idx].opacity;
+        ctxOnionNext.putImageData(imgData, 0, 0);
+      });
+    }
+  }
+
   // Play animation
-  playBtn.addEventListener('click', () => {
-    if (animationInterval) {
+  playBtn.onclick = () => {
+    if(animationInterval) {
       clearInterval(animationInterval);
       animationInterval = null;
       playBtn.textContent = 'Play Animation';
       loadFrame(currentFrameIndex);
       return;
     }
-    let frameIdx = 0;
-    const fps = Math.min(Math.max(fpsInput.value, 1), 30);
+    saveAllLayersToFrame();
+    let frameToPlay = 0;
+    const fps = Math.max(1, parseInt(fpsInput.value));
     playBtn.textContent = 'Stop Animation';
     animationInterval = setInterval(() => {
-      ctx.putImageData(frames[frameIdx], 0, 0);
-      frameIdx = (frameIdx + 1) % frames.length;
-    }, 1000 / fps);
-  });
+      loadFrame(frameToPlay);
+      frameToPlay++;
+      if(frameToPlay >= frames.length) frameToPlay = 0;
+    }, 1000/fps);
+  };
 
-  // Init UI
-  renderFrameButtons();
-  loadFrame(0);
+  // Save animation JSON
+  saveBtn.onclick = () => {
+    saveAllLayersToFrame();
+    // Save frames as base64 PNG arrays
+    const data = {
+      frames: [],
+      layers,
+    };
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = CANVAS_WIDTH;
+    tempCanvas.height = CANVAS_HEIGHT;
+    const tempCtx = tempCanvas.getContext('2d');
+
+    frames.forEach(frame => {
+      const frameLayers = frame.map(imgData => {
+        tempCtx.putImageData(imgData, 0, 0);
+        return tempCanvas.toDataURL();
+      });
+      data.frames.push(frameLayers);
+    });
+
+    const json = JSON.stringify(data);
+    const blob = new Blob([json], {type: 'application/json'});
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'animation.json';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // Load animation JSON
+  loadBtn.onclick = () => loadInput.click();
+
+  loadInput.onchange = (e) => {
+    const file = e.target.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = function(event) {
+      const data = JSON.parse(event.target.result);
+      loadAnimationData(data);
+    };
+    reader.readAsText(file);
+  };
+
+  async function loadAnimationData(data) {
+    layers.length = 0;
+    layers.push(...data.layers);
+    frames.length = 0;
+
+    for(const frameLayers of data.frames) {
+      const frameData = [];
+      for(const base64 of frameLayers) {
+        const img = new Image();
+        img.src = base64;
+        await new Promise(res => {
+          img.onload = () => {
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = CANVAS_WIDTH;
+            tempCanvas.height = CANVAS_HEIGHT;
+            const tempCtx = tempCanvas.getContext('2d');
+            tempCtx.drawImage(img, 0, 0);
+            const imgData = tempCtx.getImageData(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+            frameData.push(imgData);
+            res();
+          };
+        });
+      }
+      frames.push(frameData);
+    }
+
+    createLayerCanvases();
+    currentFrameIndex = 0;
+    loadFrame(0);
+    renderLayersUI();
+    renderFramesUI();
+    updateOnionSkin();
+  }
+
+  // Tool buttons
+  document.getElementById('penToolBtn').onclick = () => {
+    currentTool = 'pen';
+    cancelShape();
+  };
+  document.getElementById('eraserToolBtn').onclick = () => {
+    currentTool = 'eraser';
+    cancelShape();
+  };
+  document.getElementById('shapeToolBtn').onclick = () => {
+    currentTool = 'shape';
+  };
+
+  // Shape type selector
+  document.getElementById('shapeTypeSelect').onchange = (e) => {
+    shapeType = e.target.value;
+  };
+
+  // Initialize
+  createLayerCanvases();
+  setupShapePreviewCanvas();
+  addFrame();
+  renderLayersUI();
+  renderFramesUI();
+  updateOnionSkin();
+
+})();
 </script>
 
-</body>
-</html>
+<style>
+  #canvasContainer {
+    position: relative;
+    width: 800px;
+    height: 600px;
+    border: 1px solid black;
+  }
+  canvas {
+    position: absolute;
+    left: 0;
+    top: 0;
+    background-color: white;
+  }
+  #layersDiv, #framesDiv {
+    margin-top: 10px;
+  }
+  .layer-item {
+    margin-bottom: 4px;
+    padding: 4px;
+    border: 1px solid #ccc;
+  }
+  .layer-item.active {
+    background-color: #eef;
+  }
+  .frame-btn {
+    margin-right: 5px;
+  }
+  .frame-btn.active {
+    font-weight: bold;
+    text-decoration: underline;
+  }
+</style>
+
+<div>
+  <button id="addLayerBtn">Add Layer</button>
+  <button id="addFrameBtn">Add Frame</button>
+  <button id="clearFrameBtn">Clear Current Layer</button>
+  <button id="playBtn">Play Animation</button>
+  <button id="saveBtn">Save Animation</button>
+  <button id="loadBtn">Load Animation</button>
+</div>
+<div>
+  Tool:
+  <button id="penToolBtn">Pen</button>
+  <button id="eraserToolBtn">Eraser</button>
+  <button id="shapeToolBtn">Shape</button>
+  <select id="shapeTypeSelect">
+    <option value="rectangle">Rectangle</option>
+    <option value="ellipse">Ellipse</option>
+    <option value="line">Line</option>
+  </select>
+</div>
+<div id="canvasContainer"></div>
+<div id="layersDiv"></div>
+<div id="framesDiv"></div>
+<input type="file" id="loadInput" style="display:none;" accept=".json" />
+  
